@@ -1,10 +1,14 @@
 # Use official PHP image with Composer
 FROM php:8.3-apache
 
-# Install extensions and tools
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install required packages and extensions
 RUN apt-get update && apt-get install -y \
-    libzip-dev zip unzip sqlite3 \
-    && docker-php-ext-install pdo pdo_sqlite
+    libzip-dev zip unzip sqlite3 libsqlite3-dev \
+    && docker-php-ext-install pdo pdo_sqlite \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Enable mod_rewrite for Laravel routes
 RUN a2enmod rewrite
@@ -15,10 +19,13 @@ WORKDIR /var/www/html
 # Copy project files
 COPY . .
 
-# Install composer dependencies
+# Install composer
 RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
     && php composer-setup.php --install-dir=/usr/local/bin --filename=composer \
-    && composer install --no-dev --optimize-autoloader
+    && rm composer-setup.php
+
+# Install composer dependencies
+RUN composer install --no-dev --optimize-autoloader
 
 # Set permissions
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
