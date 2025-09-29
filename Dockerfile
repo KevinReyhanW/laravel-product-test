@@ -27,6 +27,9 @@ RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
 # Install composer dependencies
 RUN composer install --no-dev --optimize-autoloader
 
+# Run migrations to create database tables
+RUN php artisan migrate --force
+
 # Set permissions
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
