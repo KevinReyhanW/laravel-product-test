@@ -27,16 +27,13 @@ RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
 # Install composer dependencies
 RUN composer install --no-dev --optimize-autoloader
 
-# Run migrations to create database tables
-RUN php artisan migrate --force
-
-# Set permissions
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+# Set permissions for storage, cache, and database
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/database
 
 # Change Apache DocumentRoot to Laravel's public folder
 RUN sed -i 's#/var/www/html#/var/www/html/public#g' /etc/apache2/sites-available/000-default.conf
 
-# Expose port
+# Expose port 80
 EXPOSE 80
 
 # Start Apache
