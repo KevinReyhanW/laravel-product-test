@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class ProductController extends Controller
 {
@@ -61,20 +62,48 @@ class ProductController extends Controller
     // 🔹 Sync Products from FakeStore API
     public function sync()
     {
-        $response = Http::get('https://fakestoreapi.com/products');
-        $data = $response->json();
+        try {
+            $response = Http::timeout(10)->get('https://fakestoreapi.com/products');
 
-        foreach ($data as $item) {
-            Product::updateOrCreate(
-                ['name' => $item['title']], // using title as unique key
-                [
-                    'price' => $item['price'],
-                    'stock' => rand(1, 100), // random fake stock
-                    'description' => $item['description'],
-                ]
-            );
+            if (! $response->successful()) {
+                Log::warning('Products sync failed: remote API returned non-success', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+
+                return redirect()->route('products.index')->with('error', 'Failed to sync products (remote API error).');
+            }
+
+            $data = $response->json();
+
+            if (! is_array($data)) {
+                Log::warning('Products sync failed: unexpected payload', ['payload' => $data]);
+                return redirect()->route('products.index')->with('error', 'Failed to sync products (invalid data).');
+            }
+
+            foreach ($data as $item) {
+                // Be explicit about attributes we set to avoid mass-assignment surprises
+                $attributes = [
+                    'name' => $item['title'] ?? null,
+                    'price' => isset($item['price']) ? $item['price'] : 0,
+                    'stock' => rand(1, 100),
+                    'description' => $item['description'] ?? null,
+                ];
+
+                if (empty($attributes['name'])) {
+                    // Skip malformed records
+                    continue;
+                }
+
+                Product::updateOrCreate([
+                    'name' => $attributes['name'],
+                ], $attributes);
+            }
+
+            return redirect()->route('products.index')->with('success', 'Products synced successfully!');
+        } catch (\Exception $e) {
+            Log::error('Products sync exception', ['exception' => $e]);
+            return redirect()->route('products.index')->with('error', 'An error occurred while syncing products.');
         }
-
-        return redirect()->route('products.index')->with('success', 'Products synced successfully!');
     }
 }
